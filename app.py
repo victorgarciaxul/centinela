@@ -31,8 +31,10 @@ def cargar_config() -> dict:
     return cfg
 
 def get_conn():
-    cfg = cargar_config()
-    return psycopg2.connect(cfg["database_url"])
+    import os
+    # Preferir parámetros individuales para evitar problemas con caracteres especiales
+    db_url = os.environ.get("DATABASE_URL") or cargar_config().get("database_url", "")
+    return psycopg2.connect(db_url, sslmode="require")
 
 def load_results() -> dict:
     try:
