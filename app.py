@@ -36,6 +36,18 @@ def get_conn():
     db_url = os.environ.get("DATABASE_URL") or cargar_config().get("database_url", "")
     return psycopg2.connect(db_url, sslmode="require")
 
+@app.get("/api/debug")
+def api_debug():
+    import os
+    db_url = os.environ.get("DATABASE_URL", "NO_ENV_VAR")
+    masked = db_url[:30] + "..." if len(db_url) > 30 else db_url
+    try:
+        conn = get_conn()
+        conn.close()
+        return jsonify({"ok": True, "db_url_preview": masked})
+    except Exception as e:
+        return jsonify({"ok": False, "db_url_preview": masked, "error": str(e)})
+
 def load_results() -> dict:
     try:
         conn = get_conn()
