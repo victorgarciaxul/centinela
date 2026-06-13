@@ -7,24 +7,51 @@ import json
 import subprocess
 import sys
 import threading
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from flask import Flask, jsonify, render_template_string, request
+import psycopg2
+import psycopg2.extras
 
 BASE = Path(__file__).parent
-RESULTS_FILE = BASE / "resultados.json"
-CACHE_FILE   = BASE / "licitaciones_vistas.json"
-AGENT_FILE   = BASE / "agente_licitador.py"
+AGENT_FILE = BASE / "agente_licitador.py"
 
 app = Flask(__name__)
 _agent_running = False
 _agent_last_result = {"ok": None, "stdout": "", "stderr": "", "ts": None}
 
 
+def cargar_config() -> dict:
+    cfg = BASE / "config.json"
+    return json.loads(cfg.read_text(encoding="utf-8")) if cfg.exists() else {}
+
+def get_conn():
+    cfg = cargar_config()
+    return psycopg2.connect(cfg["database_url"])
+
 def load_results() -> dict:
-    if RESULTS_FILE.exists():
-        return json.loads(RESULTS_FILE.read_text(encoding="utf-8"))
-    return {"licitaciones": [], "actualizado": None}
+    try:
+        conn = get_conn()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM licitaciones ORDER BY plazo ASC NULLS LAST")
+            rows = cur.fetchall()
+        conn.close()
+        lics = []
+        for r in rows:
+            lics.append({
+                "_id":    r["id"],
+                "titulo": r["titulo"] or "",
+                "organo": r["organo"] or "",
+                "cpvs":   r["cpvs"] if isinstance(r["cpvs"], list) else json.loads(r["cpvs"] or "[]"),
+                "importe": str(r["importe"]) if r["importe"] else "",
+                "plazo":   str(r["plazo"]) if r["plazo"] else "",
+                "enlace":  r["enlace"] or "",
+                "fecha_deteccion": str(r["fecha_deteccion"]) if r["fecha_deteccion"] else "",
+            })
+        return {"licitaciones": lics, "actualizado": str(datetime.now())}
+    except Exception as e:
+        print(f"[DB ERROR] {e}")
+        return {"licitaciones": [], "actualizado": None}
 
 
 IRRELEVANT_KEYWORDS = [
@@ -171,11 +198,6 @@ CPV_NAMES_PY = {
     "79952000":"Organización de eventos","79956000":"Ferias y exposiciones",
 }
 
-def cargar_config() -> dict:
-    cfg = Path(__file__).parent / "config.json"
-    return json.loads(cfg.read_text(encoding="utf-8")) if cfg.exists() else {}
-
-
 @app.post("/api/analizar")
 def api_analizar():
     import urllib.request as urlreq
@@ -266,8 +288,14 @@ Responde en español, de forma directa y práctica. Sin introducciones ni conclu
 @app.get("/api/estado")
 def api_estado():
     cache_ids = 0
-    if CACHE_FILE.exists():
-        cache_ids = len(json.loads(CACHE_FILE.read_text()).get("ids", []))
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM cache_ids")
+            cache_ids = cur.fetchone()[0]
+        conn.close()
+    except:
+        pass
     return jsonify({
         "agente_corriendo": _agent_running,
         "licitaciones_en_cache": cache_ids,

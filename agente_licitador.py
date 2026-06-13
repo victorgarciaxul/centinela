@@ -2,6 +2,7 @@
 """
 Agente Licitador — IMAGINE COMUNICACIÓN ANDALUZA S.L.U
 Monitoriza licitaciones públicas en PLACSP (feed ATOM oficial) por CPVs.
+Almacena resultados en Supabase (PostgreSQL).
 """
 
 import json
@@ -12,6 +13,9 @@ from datetime import datetime, date
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+
+import psycopg2
+import psycopg2.extras
 
 # ── Configuración ────────────────────────────────────────────────────────────
 
@@ -41,15 +45,10 @@ CPVS = {
     "79956000": "Ferias y exposiciones",
 }
 
-# Feed ATOM oficial de PLACSP — licitaciones en plazo (actualización diaria)
-# Formato: página 1..N, cada página hasta 500 entradas
 PLACSP_FEED_BASE = (
     "https://contrataciondelsectorpublico.gob.es"
     "/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom"
 )
-
-CACHE_FILE    = Path(__file__).parent / "licitaciones_vistas.json"
-RESULTS_FILE  = Path(__file__).parent / "resultados.json"
 
 NS = {
     "atom": "http://www.w3.org/2005/Atom",
@@ -58,21 +57,50 @@ NS = {
     "con":  "urn:dgpe:names:draft:codice-place-ext:schema:xsd:ContractFolderStatus-2",
 }
 
-# ── Cache ─────────────────────────────────────────────────────────────────────
+# ── Config / DB ───────────────────────────────────────────────────────────────
 
-def cargar_cache() -> set:
-    if CACHE_FILE.exists():
-        data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
-        return set(data.get("ids", []))
-    return set()
+def cargar_config() -> dict:
+    cfg = Path(__file__).parent / "config.json"
+    return json.loads(cfg.read_text(encoding="utf-8")) if cfg.exists() else {}
 
+def get_conn(config: dict):
+    return psycopg2.connect(config["database_url"])
 
-def guardar_cache(ids: set):
-    CACHE_FILE.write_text(
-        json.dumps({"ids": list(ids), "actualizado": str(date.today())},
-                   ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+# ── Cache en DB ───────────────────────────────────────────────────────────────
+
+def cargar_cache(conn) -> set:
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM cache_ids")
+        return {row[0] for row in cur.fetchall()}
+
+def guardar_cache(conn, ids: set):
+    with conn.cursor() as cur:
+        psycopg2.extras.execute_values(
+            cur,
+            "INSERT INTO cache_ids (id) VALUES %s ON CONFLICT DO NOTHING",
+            [(i,) for i in ids]
+        )
+    conn.commit()
+
+# ── Guardar licitaciones en DB ────────────────────────────────────────────────
+
+def guardar_licitaciones(conn, nuevas: list):
+    with conn.cursor() as cur:
+        for l in nuevas:
+            importe = None
+            try:
+                importe = float(l["importe"]) if l.get("importe") else None
+            except ValueError:
+                pass
+            plazo = l.get("plazo") or None
+            psycopg2.extras.execute_values(
+                cur,
+                """INSERT INTO licitaciones (id, titulo, organo, cpvs, importe, plazo, enlace, fecha_deteccion)
+                   VALUES %s ON CONFLICT (id) DO NOTHING""",
+                [(l["_id"], l["titulo"], l.get("organo",""), json.dumps(l.get("cpvs",[])),
+                  importe, plazo, l.get("enlace",""), date.today())]
+            )
+    conn.commit()
 
 # ── Parseo del feed ATOM ──────────────────────────────────────────────────────
 
@@ -82,23 +110,18 @@ def _texto(el, path: str) -> str:
 
 
 def parsear_entrada(entry) -> dict | None:
-    """Extrae campos relevantes de una entrada ATOM de PLACSP."""
     lid = _texto(entry, "atom:id") or _texto(entry, "atom:title")
     titulo = _texto(entry, "atom:title")
     enlace_node = entry.find("atom:link[@rel='alternate']", NS) or entry.find("atom:link", NS)
     enlace = enlace_node.get("href", "") if enlace_node is not None else ""
-
-    # CPV (puede haber varios)
     cpvs_doc = [
         n.text.strip()[:8]
         for n in entry.findall(".//cbc:ItemClassificationCode", NS)
         if n.text
     ]
-
     importe = _texto(entry, ".//cbc:TaxExclusiveAmount")
     plazo   = _texto(entry, ".//cbc:EndDate")
     organo  = _texto(entry, ".//cac:PartyName/cbc:Name")
-
     return {
         "_id":    lid,
         "titulo": titulo,
@@ -111,7 +134,6 @@ def parsear_entrada(entry) -> dict | None:
 
 
 def obtener_pagina(url: str) -> tuple[list[dict], str | None]:
-    """Descarga una página del feed y devuelve (entradas, url_siguiente)."""
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "AgenteImagine/2.0"})
         with urllib.request.urlopen(req, timeout=20) as resp:
@@ -126,7 +148,6 @@ def obtener_pagina(url: str) -> tuple[list[dict], str | None]:
         if parsed:
             entradas.append(parsed)
 
-    # URL siguiente (paginación)
     siguiente = None
     for link in root.findall("atom:link", NS):
         if link.get("rel") == "next":
@@ -137,14 +158,12 @@ def obtener_pagina(url: str) -> tuple[list[dict], str | None]:
 
 
 def es_relevante(entrada: dict) -> bool:
-    """True si algún CPV del documento coincide con los de IMAGINE."""
     for cpv in entrada.get("cpvs", []):
-        cpv8 = cpv[:8]
-        if cpv8 in CPVS:
+        if cpv[:8] in CPVS:
             return True
     return False
 
-# ── Formateo y email ──────────────────────────────────────────────────────────
+# ── Email ─────────────────────────────────────────────────────────────────────
 
 def formatear(l: dict) -> str:
     cpv_desc = ", ".join(
@@ -152,12 +171,12 @@ def formatear(l: dict) -> str:
     )
     lines = [
         f"  Título  : {l['titulo']}",
-        f"  Órgano  : {l['organo'] or 'N/D'}",
+        f"  Órgano  : {l.get('organo') or 'N/D'}",
         f"  CPV     : {cpv_desc or ', '.join(l.get('cpvs', []))}",
-        f"  Importe : {l['importe'] or 'N/D'} €",
-        f"  Plazo   : {l['plazo'] or 'N/D'}",
+        f"  Importe : {l.get('importe') or 'N/D'} €",
+        f"  Plazo   : {l.get('plazo') or 'N/D'}",
     ]
-    if l["enlace"]:
+    if l.get("enlace"):
         lines.append(f"  Enlace  : {l['enlace']}")
     return "\n".join(lines)
 
@@ -170,14 +189,12 @@ def enviar_email(licitaciones: list[dict], config: dict):
         print("[INFO] SMTP no configurado — sin envío de email.")
         return
 
-    cuerpo = f"NUEVAS LICITACIONES — {EMPRESA}\n"
-    cuerpo += f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
-    cuerpo += "=" * 60 + "\n\n"
+    cuerpo = f"NUEVAS LICITACIONES — {EMPRESA}\nFecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n{'='*60}\n\n"
     for l in licitaciones:
         cuerpo += formatear(l) + "\n\n"
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"[LICITADOR] {len(licitaciones)} nuevas licitaciones — {date.today()}"
+    msg["Subject"] = f"[CENTINELA] {len(licitaciones)} nuevas licitaciones — {date.today()}"
     msg["From"]    = smtp_user
     msg["To"]      = EMAIL_DESTINO
     msg.attach(MIMEText(cuerpo, "plain", "utf-8"))
@@ -190,41 +207,20 @@ def enviar_email(licitaciones: list[dict], config: dict):
     except Exception as e:
         print(f"[ERROR] Email: {e}")
 
-
-def guardar_resultados(nuevas: list[dict]):
-    """Añade las nuevas licitaciones al historial completo de resultados."""
-    existentes = []
-    if RESULTS_FILE.exists():
-        existentes = json.loads(RESULTS_FILE.read_text(encoding="utf-8")).get("licitaciones", [])
-    ids_existentes = {l["_id"] for l in existentes}
-    for l in nuevas:
-        if l["_id"] not in ids_existentes:
-            l["fecha_deteccion"] = str(date.today())
-            existentes.insert(0, l)
-    RESULTS_FILE.write_text(
-        json.dumps({"licitaciones": existentes, "actualizado": str(datetime.now())},
-                   ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-
-
-def cargar_config() -> dict:
-    cfg = Path(__file__).parent / "config.json"
-    return json.loads(cfg.read_text(encoding="utf-8")) if cfg.exists() else {}
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     print(f"\n{'='*60}")
-    print(f"  AGENTE LICITADOR — {EMPRESA}")
+    print(f"  CENTINELA — {EMPRESA}")
     print(f"  {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
     print(f"{'='*60}\n")
 
-    config  = cargar_config()
-    cache   = cargar_cache()
-    nuevas  = []
+    config = cargar_config()
+    conn   = get_conn(config)
+    cache  = cargar_cache(conn)
+    nuevas = []
     paginas = 0
-    url     = PLACSP_FEED_BASE
+    url = PLACSP_FEED_BASE
 
     print("Descargando feed PLACSP", end="", flush=True)
     while url:
@@ -239,12 +235,10 @@ def main():
                 nuevas.append(e)
                 cache.add(e["_id"])
 
-        # Máx 3 páginas por ejecución (1 500 entradas, ~20s)
         if paginas >= 3:
             break
 
     print(f" {paginas} página(s) procesada(s)\n")
-
     print(f"{'─'*60}")
     print(f"LICITACIONES NUEVAS RELEVANTES: {len(nuevas)}")
     print(f"{'─'*60}\n")
@@ -253,12 +247,13 @@ def main():
         for l in nuevas:
             print(formatear(l))
             print()
-        guardar_cache(cache)
-        guardar_resultados(nuevas)
+        guardar_cache(conn, cache)
+        guardar_licitaciones(conn, nuevas)
         enviar_email(nuevas, config)
     else:
         print("No hay licitaciones nuevas para IMAGINE.")
 
+    conn.close()
     print(f"\n[OK] Finalizado — {datetime.now().strftime('%H:%M:%S')}\n")
 
 
