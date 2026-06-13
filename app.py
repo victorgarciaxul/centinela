@@ -4,8 +4,6 @@ Web app para el Agente Licitador — IMAGINE COMUNICACIÓN ANDALUZA S.L.U
 """
 
 import json
-import subprocess
-import sys
 import threading
 from datetime import datetime, date
 from pathlib import Path
@@ -166,19 +164,17 @@ def api_stats():
 
 def _run_agent():
     global _agent_running, _agent_last_result
+    import io, contextlib
     try:
-        result = subprocess.run(
-            [sys.executable, str(AGENT_FILE)],
-            capture_output=True, text=True, timeout=300
-        )
+        import agente_licitador
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            agente_licitador.main()
         _agent_last_result = {
-            "ok": result.returncode == 0,
-            "stdout": result.stdout[-4000:],
-            "stderr": result.stderr[-1000:],
+            "ok": True,
+            "stdout": buf.getvalue()[-4000:],
             "ts": datetime.now().strftime("%H:%M:%S"),
         }
-    except subprocess.TimeoutExpired:
-        _agent_last_result = {"ok": False, "msg": "Timeout (5 min)", "ts": datetime.now().strftime("%H:%M:%S")}
     except Exception as e:
         _agent_last_result = {"ok": False, "msg": str(e), "ts": datetime.now().strftime("%H:%M:%S")}
     finally:
