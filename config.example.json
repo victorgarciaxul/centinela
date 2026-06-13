@@ -1,0 +1,6 @@
+{
+  "grok_api_key": "gsk_...",
+  "smtp_host": "",
+  "smtp_user": "",
+  "smtp_pass": ""
+}

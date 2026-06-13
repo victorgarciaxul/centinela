@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+config.json
+resultados.json
+licitaciones_vistas.json
+.DS_Store
