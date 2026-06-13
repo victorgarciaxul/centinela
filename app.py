@@ -22,8 +22,15 @@ _agent_last_result = {"ok": None, "stdout": "", "stderr": "", "ts": None}
 
 
 def cargar_config() -> dict:
-    cfg = BASE / "config.json"
-    return json.loads(cfg.read_text(encoding="utf-8")) if cfg.exists() else {}
+    import os
+    cfg_file = BASE / "config.json"
+    cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.exists() else {}
+    # Variables de entorno tienen prioridad (Vercel)
+    if os.environ.get("DATABASE_URL"):
+        cfg["database_url"] = os.environ["DATABASE_URL"]
+    if os.environ.get("GROK_API_KEY"):
+        cfg["grok_api_key"] = os.environ["GROK_API_KEY"]
+    return cfg
 
 def get_conn():
     cfg = cargar_config()
