@@ -603,7 +603,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
         <button class="tab active" id="tab-todas" onclick="setTab('todas')">Todas</button>
         <button class="tab" id="tab-urgentes" onclick="setTab('urgentes')">⚡ Urgentes</button>
         <button class="tab" id="tab-esta-semana" onclick="setTab('esta-semana')">Esta semana</button>
-        <button class="tab" id="tab-grandes" onclick="setTab('grandes')">+100k €</button>
       </div>
       <div class="tb-sep"></div>
       <select class="tb-select" id="filter-cpv" onchange="cargarTodo()">
