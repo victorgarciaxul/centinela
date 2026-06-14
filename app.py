@@ -611,6 +611,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       </div>
     </div>
 
+    <div style="padding:14px 12px 12px;border-bottom:1px solid #F0F0F0;display:flex;justify-content:center;">
+      <svg width="110" height="40" viewBox="0 0 220 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Slash 1 -->
+        <polygon points="8,72 18,72 30,8 20,8" fill="#111" rx="2"/>
+        <!-- Slash 2 -->
+        <polygon points="26,72 36,72 48,8 38,8" fill="#111"/>
+        <!-- X: diagonal top-left to bottom-right -->
+        <polygon points="54,8 68,8 100,72 86,72" fill="#111"/>
+        <!-- X: diagonal top-right to bottom-left -->
+        <polygon points="86,8 100,8 68,72 54,72" fill="#111"/>
+        <!-- U: left stem -->
+        <rect x="108" y="8" width="14" height="52" rx="4" fill="#111"/>
+        <!-- U: right stem -->
+        <rect x="148" y="8" width="14" height="52" rx="4" fill="#111"/>
+        <!-- U: bottom curve -->
+        <rect x="108" y="52" width="54" height="14" rx="7" fill="#111"/>
+        <!-- L: vertical -->
+        <rect x="172" y="8" width="14" height="64" rx="4" fill="#111"/>
+        <!-- L: horizontal -->
+        <rect x="172" y="58" width="40" height="14" rx="4" fill="#111"/>
+      </svg>
+    </div>
 
     <div class="sb-section">
       <div class="sb-label">Por categoría</div>
