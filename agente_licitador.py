@@ -60,8 +60,14 @@ NS = {
 # ── Config / DB ───────────────────────────────────────────────────────────────
 
 def cargar_config() -> dict:
-    cfg = Path(__file__).parent / "config.json"
-    return json.loads(cfg.read_text(encoding="utf-8")) if cfg.exists() else {}
+    import os
+    cfg_file = Path(__file__).parent / "config.json"
+    cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.exists() else {}
+    if os.environ.get("DATABASE_URL"):
+        cfg["database_url"] = os.environ["DATABASE_URL"]
+    if os.environ.get("GROK_API_KEY"):
+        cfg["grok_api_key"] = os.environ["GROK_API_KEY"]
+    return cfg
 
 def get_conn(config: dict):
     return psycopg2.connect(config["database_url"])
