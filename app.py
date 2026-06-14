@@ -641,15 +641,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       </div>
     </div>
 
-    <div class="sb-footer">
-      <div class="sb-user">
-        <div class="sb-user-av">IM</div>
-        <div>
-          <div class="sb-user-name">IMAGINE</div>
-          <div class="sb-user-email">vrdesign87@gmail.com</div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- Main -->
