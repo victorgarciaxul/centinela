@@ -509,7 +509,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .count-pill{background:#F0F0F0;color:#666;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;}
 
 /* Card grid */
-.cards-area{flex:1;overflow-y:auto;padding:0 24px 24px;}
+.cards-area{flex:1;overflow-y:auto;padding:0 24px 24px;display:flex;flex-direction:column;}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;}
 
 /* Licitacion card */
@@ -541,7 +541,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .btn-ver:hover{background:#F5F5F5;}
 
 /* Empty state */
-.empty-state{text-align:center;padding:80px 20px;color:#BBBBBB;}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;color:#BBBBBB;}
 .empty-state .e-icon{font-size:40px;margin-bottom:12px;}
 .empty-state p{font-size:14px;}
 
@@ -736,9 +736,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 
     <!-- Cards -->
     <div class="cards-area">
-      <div class="card-grid" id="card-grid">
-        <div class="empty-state"><div class="e-icon">⏳</div><p>Cargando licitaciones…</p></div>
-      </div>
+      <div class="empty-state" id="empty-state"><div class="e-icon">⏳</div><p>Cargando licitaciones…</p></div>
+      <div class="card-grid" id="card-grid" style="display:none;"></div>
     </div>
 
   </div><!-- /main -->
@@ -908,12 +907,17 @@ function applyTab(lics) {
 
 function renderGrid(lics) {
   const grid = document.getElementById('card-grid');
+  const emptyEl = document.getElementById('empty-state');
   const shown = applyTab(lics);
   document.getElementById('count-pill').innerHTML = `<strong>${shown.length}</strong> resultado${shown.length!==1?'s':''}`;
   if (shown.length === 0) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="e-icon">🔍</div><p>No hay licitaciones con ese filtro</p></div>';
+    grid.style.display = 'none';
+    emptyEl.style.display = 'flex';
+    emptyEl.innerHTML = '<div class="e-icon">🔍</div><p>No hay licitaciones con ese filtro</p>';
     return;
   }
+  emptyEl.style.display = 'none';
+  grid.style.display = 'grid';
   grid.innerHTML = shown.map(renderCard).join('');
 }
 
