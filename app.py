@@ -430,6 +430,7 @@ HTML = r"""<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Centinela — IMAGINE</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Crect width='26' height='26' rx='7' fill='%23111'/%3E%3Ccircle cx='13' cy='11' r='4.5' stroke='white' stroke-width='1.6' fill='none'/%3E%3Ccircle cx='13' cy='11' r='1.5' fill='white'/%3E%3Cline x1='13' y1='16' x2='13' y2='20' stroke='white' stroke-width='1.6' stroke-linecap='round'/%3E%3Cline x1='9.5' y1='20' x2='16.5' y2='20' stroke='white' stroke-width='1.6' stroke-linecap='round'/%3E%3Cpath d='M7 11 A6 6 0 0 1 19 11' stroke='%234A4AE8' stroke-width='1.4' stroke-linecap='round' fill='none'/%3E%3Cpath d='M4.5 11 A8.5 8.5 0 0 1 21.5 11' stroke='%234A4AE8' stroke-width='1.1' stroke-linecap='round' fill='none' opacity='.45'/%3E%3C/svg%3E">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fff;min-height:100vh;display:flex;overflow:hidden;}
