@@ -456,6 +456,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .sb-item .sb-dot.green{background:#34D399;}
 .sb-item .sb-dot.blue{background:#60A5FA;}
 .sb-footer{flex-shrink:0;padding:12px;border-top:1px solid #F0F0F0;}
+.sb-faq{margin-bottom:6px;}
+.sb-faq summary{font-size:11px;font-weight:600;color:#555;cursor:pointer;padding:6px 4px;list-style:none;display:flex;align-items:center;justify-content:space-between;user-select:none;}
+.sb-faq summary::-webkit-details-marker{display:none;}
+.sb-faq summary::after{content:"›";font-size:14px;color:#BBB;transition:transform .2s;}
+.sb-faq[open] summary::after{transform:rotate(90deg);}
+.sb-faq ul{margin:4px 0 8px;padding-left:12px;list-style:none;}
+.sb-faq li{font-size:10px;color:#888;padding:2px 0;line-height:1.4;}
 .sb-user{display:flex;align-items:center;gap:8px;}
 .sb-user-av{width:28px;height:28px;border-radius:50%;background:#4A4AE8;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;}
 .sb-user-name{font-size:12px;font-weight:500;color:#222;}
@@ -644,6 +651,43 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       <div class="sb-item" onclick="setCpv('79800000')">
         <span class="sb-dot" style="background:#9CA3AF"></span> Impresión
       </div>
+    </div>
+
+    <!-- FAQs desplegables -->
+    <div style="padding:10px;border-top:1px solid #F0F0F0;flex-shrink:0;">
+      <details class="sb-faq">
+        <summary>¿Qué CPVs integra?</summary>
+        <ul>
+          <li>79340000 — Publicidad y marketing</li>
+          <li>79341000 — Publicidad</li>
+          <li>79342000 — Marketing</li>
+          <li>79341200 — Gestión de publicidad</li>
+          <li>79341400 — Campañas de publicidad</li>
+          <li>79342200 — Promoción</li>
+          <li>79341100 — Colocación de publicidad</li>
+          <li>79822500 — Diseño gráfico</li>
+          <li>72413000 — Diseño web</li>
+          <li>72415000 — Alojamiento web</li>
+          <li>79413000 — Consultoría marketing</li>
+          <li>79416000 — Relaciones públicas</li>
+          <li>79416200 — Asesoramiento RRPP</li>
+          <li>79952000 — Organización de eventos</li>
+          <li>79956000 — Ferias y exposiciones</li>
+          <li>92210000 — Servicios de radio</li>
+          <li>92220000 — Servicios de televisión</li>
+          <li>74812240 — Producción vídeos publicidad</li>
+          <li>92111250 — Producción vídeos información</li>
+          <li>79800000 — Impresión</li>
+        </ul>
+      </details>
+      <details class="sb-faq">
+        <summary>¿Qué fuentes analiza?</summary>
+        <ul>
+          <li>🏛️ PLACSP — Plataforma de Contratación del Sector Público (feed ATOM oficial)</li>
+          <li>📡 Actualización diaria automática</li>
+          <li>🔍 Cubre licitaciones de toda España: AAPP, CCAA, ayuntamientos y organismos públicos</li>
+        </ul>
+      </details>
     </div>
 
   </div>
