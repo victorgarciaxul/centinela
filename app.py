@@ -526,6 +526,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .lc-menu:hover{color:#888;}
 .lc-title{font-size:13px;font-weight:600;color:#111;line-height:1.45;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .lc-organo{font-size:12px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lc-dates{font-size:11px;color:#AAA;margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;}
+.lc-date-sep{color:#DDD;}
 .lc-bottom{padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .lc-cpvs{display:flex;gap:5px;flex-wrap:wrap;flex:1;min-width:0;}
 .cpv-chip{background:#F5F4FF;color:#4A4AE8;font-size:10px;font-weight:500;padding:2px 7px;border-radius:4px;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;}
@@ -695,12 +697,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 
     <!-- Toolbar -->
     <div class="toolbar">
-      <div class="tabs">
-        <button class="tab active" id="tab-todas" onclick="setTab('todas')">Todas</button>
-        <button class="tab" id="tab-urgentes" onclick="setTab('urgentes')">⚡ Urgentes</button>
-        <button class="tab" id="tab-esta-semana" onclick="setTab('esta-semana')">Esta semana</button>
-      </div>
-      <div class="tb-sep"></div>
       <select class="tb-select" id="filter-cpv" onchange="cargarTodo()">
         <option value="">Todos los CPVs</option>
         <option value="79340000">Publicidad y marketing</option>
@@ -730,6 +726,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
         <option value="50000">+50.000 €</option>
         <option value="100000">+100.000 €</option>
         <option value="500000">+500.000 €</option>
+      </select>
+      <select class="tb-select" id="filter-plazo" onchange="renderGrid(allLics)">
+        <option value="">Cualquier plazo</option>
+        <option value="3">Vence en 3 días</option>
+        <option value="7">Vence en 7 días</option>
+        <option value="15">Vence en 15 días</option>
+        <option value="30">Vence en 30 días</option>
       </select>
       <div class="count-pill" id="count-pill">0 resultados</div>
     </div>
@@ -876,12 +879,16 @@ function renderCard(l) {
     ? `<span class="lc-importe">${fmt(imp)}</span>`
     : `<span class="lc-importe nd">N/D</span>`;
 
+  const pubDate  = l.fecha_deteccion ? `📅 Publicada: ${fmtDate(l.fecha_deteccion)}` : '';
+  const plazoTxt = l.plazo ? `⏱️ Plazo: ${fmtDate(l.plazo)}` : '';
+
   const ld = JSON.stringify(l).replace(/"/g,'&quot;');
   return `<div class="lic-card">
     <div class="lc-top" onclick="verDetalle(${ld})" style="cursor:pointer;">
       <div class="lc-due">${dueChip(l.plazo)}<span class="lc-menu">···</span></div>
       <div class="lc-title">${l.titulo||'Sin título'}</div>
       <div class="lc-organo">${l.organo||'Órgano desconocido'}</div>
+      <div class="lc-dates">${[pubDate, plazoTxt].filter(Boolean).join('<span class="lc-date-sep">·</span>')}</div>
     </div>
     <div class="lc-bottom">
       <div class="lc-cpvs">${cpvs||'<span class="cpv-chip" style="background:#F5F5F5;color:#999;">Sin CPV</span>'}</div>
@@ -898,10 +905,8 @@ function renderCard(l) {
 }
 
 function applyTab(lics) {
-  const today = new Date();
-  if (activeTab === 'urgentes') return lics.filter(l => { const d=plazoDays(l.plazo); return d!==null && d>=0 && d<=7; });
-  if (activeTab === 'esta-semana') return lics.filter(l => { const d=plazoDays(l.plazo); return d!==null && d>=0 && d<=14; });
-  if (activeTab === 'grandes') return lics.filter(l => (parseFloat(l.importe)||0) >= 100000);
+  const maxDays = parseInt(document.getElementById('filter-plazo')?.value || '0');
+  if (maxDays > 0) return lics.filter(l => { const d=plazoDays(l.plazo); return d!==null && d>=0 && d<=maxDays; });
   return lics;
 }
 
@@ -921,17 +926,6 @@ function renderGrid(lics) {
   grid.innerHTML = shown.map(renderCard).join('');
 }
 
-function setTab(t) {
-  activeTab = t;
-  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-  const el = document.getElementById('tab-'+t);
-  if (el) el.classList.add('active');
-  document.querySelectorAll('.sb-item').forEach(el => el.classList.remove('active'));
-  const titles = {todas:'Licitaciones activas',urgentes:'Urgentes (≤7 días)','esta-semana':'Esta semana (≤14 días)',grandes:'+100.000 €'};
-  document.getElementById('page-title').textContent = titles[t] || 'Licitaciones';
-  document.getElementById('bc-current').textContent = titles[t] || 'Licitaciones';
-  renderGrid(allLics);
-}
 
 function setCpv(cpv) {
   document.getElementById('filter-cpv').value = cpv;
