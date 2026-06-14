@@ -238,7 +238,7 @@ def api_analizar():
     except:
         imp_fmt = importe or "No especificado"
 
-    prompt = f"""Eres un experto en contratación pública española. Analiza esta licitación para IMAGINE COMUNICACIÓN ANDALUZA S.L.U, agencia especializada en publicidad, marketing, diseño, eventos, relaciones públicas y comunicación digital.
+    prompt = f"""Eres un experto en contratación pública española. Analiza en detalle esta licitación para IMAGINE COMUNICACIÓN ANDALUZA S.L.U, agencia especializada en publicidad, marketing, diseño gráfico, eventos, relaciones públicas y comunicación digital.
 
 LICITACIÓN:
 • Título: {titulo}
@@ -248,32 +248,39 @@ LICITACIÓN:
 • Categorías CPV: {cpv_desc or "No especificadas"}
 • Enlace: {enlace or "No disponible"}
 
-Proporciona un análisis estructurado con estas secciones exactas (usa los emojis indicados como cabecera):
+Proporciona un análisis estructurado con estas secciones exactas (usa los emojis como cabecera de cada bloque):
 
-🎯 RESUMEN
-Qué se lícita en 2-3 frases concretas.
+🎯 RESUMEN EJECUTIVO
+Describe qué se licita, para qué organismo y cuál es el objetivo principal del contrato. 3-4 frases concretas.
 
-📋 SERVICIOS REQUERIDOS
-Lista de puntos con lo que pide exactamente el contrato.
+🛠️ SERVICIOS Y ENTREGABLES REQUERIDOS
+Lista detallada de todo lo que hay que realizar o entregar: tipos de piezas, canales, formatos, volúmenes si se mencionan, duración del contrato, posibles prórrogas.
 
-⚡ PUNTOS CRÍTICOS
-Requisitos, condiciones o restricciones importantes para poder presentarse (solvencia, plazos, exclusividad, etc.).
+📋 REQUISITOS PARA PRESENTARSE
+Lista todos los requisitos obligatorios para poder optar al contrato:
+- Requisitos de solvencia económica (facturación mínima, seguros, etc.)
+- Requisitos de solvencia técnica (experiencia previa, equipo humano, certificaciones)
+- Documentación obligatoria (garantías, registros, habilitaciones profesionales)
+- Restricciones o condicionantes específicos
 
-💡 OPORTUNIDAD PARA IMAGINE
-Puntuación del 1-10 y justificación de por qué encaja (o no) con el perfil de la agencia.
+⚡ CRITERIOS DE VALORACIÓN
+Explica cómo se puntuará la oferta: criterios objetivos (precio) y subjetivos (calidad, proyecto técnico, etc.) con sus pesos si están disponibles. Qué aspectos son clave para ganar.
+
+💡 ENCAJE CON IMAGINE
+Puntuación del 1 al 10 sobre el encaje con el perfil de IMAGINE. Justifica qué capacidades de la agencia son un punto fuerte y qué posibles debilidades o gaps habría que cubrir.
 
 ✅ RECOMENDACIÓN
-Presentarse / No presentarse / Considerar, con motivo en 1-2 frases.
+Presentarse / No presentarse / Valorar con cautela. Motivo en 2-3 frases directas.
 
 🚀 PRÓXIMOS PASOS
-Lista de 3-5 acciones concretas para preparar la oferta si se decide concurrir.
+Lista de 4-6 acciones concretas y ordenadas para preparar la oferta si se decide concurrir (descargar pliego, visita técnica, subcontratas necesarias, etc.).
 
-Responde en español, de forma directa y práctica. Sin introducciones ni conclusiones genéricas."""
+Responde en español, de forma directa y práctica. Sin introducciones ni conclusiones genéricas. Sé específico y útil."""
 
     payload = json.dumps({
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 1200,
+        "max_tokens": 2000,
         "temperature": 0.2,
     }).encode("utf-8")
 
@@ -300,6 +307,101 @@ Responde en español, de forma directa y práctica. Sin introducciones ni conclu
         return jsonify({"ok": True, "analysis": analysis})
     except Exception as e:
         return jsonify({"ok": False, "msg": f"Error Groq: {e}"})
+
+
+@app.post("/api/descargar-analisis")
+def api_descargar_analisis():
+    from docx import Document
+    from docx.shared import Pt, RGBColor, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    import io, re
+    from flask import send_file
+
+    data     = request.get_json()
+    titulo   = data.get("titulo", "Licitación")
+    organo   = data.get("organo", "")
+    importe  = data.get("importe", "")
+    plazo    = data.get("plazo", "")
+    analysis = data.get("analysis", "")
+
+    doc = Document()
+
+    # Márgenes
+    for section in doc.sections:
+        section.top_margin    = Cm(2.5)
+        section.bottom_margin = Cm(2.5)
+        section.left_margin   = Cm(3)
+        section.right_margin  = Cm(3)
+
+    # Cabecera
+    hdr = doc.add_paragraph()
+    hdr.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = hdr.add_run("CENTINELA — Análisis de Licitación")
+    run.bold = True
+    run.font.size = Pt(16)
+    run.font.color.rgb = RGBColor(0x11, 0x11, 0x11)
+
+    doc.add_paragraph()
+
+    # Ficha
+    ficha = doc.add_paragraph()
+    ficha.add_run("📌 Título: ").bold = True
+    ficha.add_run(titulo)
+    if organo:
+        p = doc.add_paragraph()
+        p.add_run("🏛️ Órgano: ").bold = True
+        p.add_run(organo)
+    if importe:
+        p = doc.add_paragraph()
+        p.add_run("💶 Importe: ").bold = True
+        try: p.add_run(f"{float(importe):,.0f} €")
+        except: p.add_run(importe)
+    if plazo:
+        p = doc.add_paragraph()
+        p.add_run("📅 Plazo: ").bold = True
+        p.add_run(plazo)
+
+    doc.add_paragraph()
+    doc.add_paragraph("─" * 60)
+    doc.add_paragraph()
+
+    # Parsear secciones del análisis
+    SECTION_EMOJIS = re.compile(r'^(🎯|🛠️|📋|⚡|💡|✅|🚀)\s')
+    for line in analysis.split('\n'):
+        line = line.rstrip()
+        if not line:
+            doc.add_paragraph()
+            continue
+        if SECTION_EMOJIS.match(line):
+            p = doc.add_paragraph()
+            run = p.add_run(line.replace('**',''))
+            run.bold = True
+            run.font.size = Pt(13)
+            run.font.color.rgb = RGBColor(0x11, 0x11, 0x11)
+        elif re.match(r'^[-•*]\s', line) or re.match(r'^\d+\.', line):
+            text = re.sub(r'^[-•*\d\.]\s*', '', line).replace('**','')
+            p = doc.add_paragraph(text, style='List Bullet')
+            p.paragraph_format.left_indent = Cm(0.5)
+        else:
+            text = line.replace('**','')
+            doc.add_paragraph(text)
+
+    # Pie
+    doc.add_paragraph()
+    doc.add_paragraph("─" * 60)
+    pie = doc.add_paragraph()
+    pie.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run = pie.add_run(f"Generado por Centinela · IMAGINE COMUNICACIÓN ANDALUZA")
+    run.font.size = Pt(8)
+    run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    safe = re.sub(r'[^\w\s-]', '', titulo)[:50].strip().replace(' ','_')
+    return send_file(buf, as_attachment=True,
+                     download_name=f"Centinela_{safe}.docx",
+                     mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 
 @app.get("/api/estado")
@@ -445,13 +547,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 
 /* Modal */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;padding:20px;}
-.modal-analisis{max-width:680px;}
-.analysis-body{font-size:13px;color:#333;line-height:1.75;}
-.analysis-body h3{font-size:13px;font-weight:600;color:#111;margin:16px 0 5px;display:flex;align-items:center;gap:5px;}
-.analysis-body h3:first-child{margin-top:0;}
-.analysis-body ul{padding-left:16px;margin:0 0 8px;}
-.analysis-body li{margin-bottom:3px;}
-.analysis-body p{margin:0 0 8px;}
+.modal-analisis{max-width:720px;}
+.analysis-body{font-size:13px;color:#333;line-height:1.8;}
+.analysis-section{border:1px solid #F0F0F0;border-radius:10px;padding:14px 16px;margin-bottom:12px;background:#FAFAFA;}
+.analysis-section:first-child{margin-top:0;}
+.analysis-section h3{font-size:13px;font-weight:700;color:#111;margin:0 0 8px;display:flex;align-items:center;gap:7px;border-bottom:1px solid #EBEBEB;padding-bottom:8px;}
+.analysis-section ul{padding-left:18px;margin:0;}
+.analysis-section li{margin-bottom:4px;}
+.analysis-section p{margin:0 0 6px;}
+.analysis-section p:last-child{margin-bottom:0;}
+.analysis-body{display:flex;flex-direction:column;gap:0;}
 .analysis-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:50px 20px;gap:14px;color:#999;}
 .analysis-loading .big-spin{width:32px;height:32px;border:3px solid #F0EFFD;border-top-color:#4A4AE8;border-radius:50%;animation:spin .8s linear infinite;}
 .no-api-warn{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:12px 14px;font-size:12px;color:#92400E;line-height:1.5;}
@@ -687,6 +792,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     </div>
     <div class="modal-footer" style="display:flex;gap:8px;align-items:center;" id="ma-footer">
       <a id="ma-enlace" class="btn-link" target="_blank" style="display:none;">🔗 Ver en PLACSP</a>
+      <button id="btn-docx" onclick="descargarDocx()" style="display:none;background:#1A56DB;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;display:none;align-items:center;gap:6px;">📄 Descargar DOCX</button>
       <button onclick="document.getElementById('modal-analisis').classList.remove('open')" style="margin-left:auto;background:#fff;border:1px solid #EBEBEB;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;">Cerrar</button>
     </div>
   </div>
@@ -873,48 +979,51 @@ async function cargarStats() {
 }
 
 function formatAnalysis(text) {
+  const SECTION_RE = /^(🎯|🛠️|📋|⚡|💡|✅|🚀)\s/;
   const lines = text.split('\n');
   let html = '<div class="analysis-body">';
-  let inUl = false;
+  let inSection = false, inUl = false;
+
+  const closeUl  = () => { if (inUl)      { html += '</ul>'; inUl = false; } };
+  const closeSec = () => { closeUl(); if (inSection) { html += '</div>'; inSection = false; } };
 
   for (let line of lines) {
     line = line.trim();
-    if (!line) { if (inUl) { html += '</ul>'; inUl = false; } continue; }
+    if (!line) continue;
 
-    if (/^(🎯|📋|⚡|💡|✅|🚀)\s/.test(line)) {
-      if (inUl) { html += '</ul>'; inUl = false; }
-      const emoji = line.match(/^(🎯|📋|⚡|💡|✅|🚀)/)[0];
-      const rest  = line.replace(/^(🎯|📋|⚡|💡|✅|🚀)\s*\*?\*?/, '').replace(/\*\*$/, '').trim();
-      html += `<h3>${emoji} ${rest}</h3>`;
-    } else if (/^\*\*/.test(line) && line.endsWith('**')) {
-      if (inUl) { html += '</ul>'; inUl = false; }
-      html += `<h3>${line.replace(/\*\*/g,'')}</h3>`;
-    } else if (/^[-•*]\s/.test(line)) {
+    if (SECTION_RE.test(line) || (/^\*\*/.test(line) && line.endsWith('**'))) {
+      closeSec();
+      const title = line.replace(/\*\*/g,'').trim();
+      html += `<div class="analysis-section"><h3>${title}</h3>`;
+      inSection = true;
+    } else if (/^[-•*]\s/.test(line) || /^\d+\./.test(line)) {
       if (!inUl) { html += '<ul>'; inUl = true; }
-      const content = line.replace(/^[-•*]\s/,'').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
-      html += `<li>${content}</li>`;
-    } else if (/^\d+\./.test(line)) {
-      if (!inUl) { html += '<ul>'; inUl = true; }
-      const content = line.replace(/^\d+\.\s*/,'').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+      const content = line.replace(/^[-•*\d\.]\s*/,'').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
       html += `<li>${content}</li>`;
     } else {
-      if (inUl) { html += '</ul>'; inUl = false; }
+      closeUl();
       const content = line.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
       html += `<p>${content}</p>`;
     }
   }
-  if (inUl) html += '</ul>';
+  closeSec();
   html += '</div>';
   return html;
 }
 
+let _currentLic = null;
+let _currentAnalysis = null;
+
 async function analizarLic(l, btn) {
+  _currentLic = l;
+  _currentAnalysis = null;
+  document.getElementById('btn-docx').style.display = 'none';
   document.getElementById('ma-titulo').textContent = l.titulo || '—';
   const enlaceEl = document.getElementById('ma-enlace');
   enlaceEl.href = l.enlace || '#';
   enlaceEl.style.display = l.enlace ? 'inline-flex' : 'none';
   document.getElementById('ma-body').innerHTML =
-    '<div class="analysis-loading"><div class="big-spin"></div><p>Analizando con Grok…</p></div>';
+    '<div class="analysis-loading"><div class="big-spin"></div><p>Analizando con Groq…</p></div>';
   document.getElementById('modal-analisis').classList.add('open');
 
   if (btn) { btn.disabled = true; btn.classList.add('loading'); }
@@ -931,21 +1040,46 @@ async function analizarLic(l, btn) {
     });
     const d = await r.json();
     if (d.ok) {
+      _currentAnalysis = d.analysis;
       document.getElementById('ma-body').innerHTML = formatAnalysis(d.analysis);
+      document.getElementById('btn-docx').style.display = 'inline-flex';
     } else {
       const isApiKey = d.msg && d.msg.includes('API key');
       document.getElementById('ma-body').innerHTML = isApiKey
-        ? `<div class="no-api-warn">
-            <strong>API key no configurada.</strong><br>
-            Abre <code>config.json</code> y añade tu clave de xAI en el campo <code>grok_api_key</code>.<br>
-            Consíguela en <a href="https://console.x.ai" target="_blank">console.x.ai</a> (hay créditos gratuitos).
-           </div>`
+        ? `<div class="no-api-warn"><strong>API key no configurada.</strong></div>`
         : `<p style="color:#DC2626;font-size:13px;">Error: ${d.msg}</p>`;
     }
   } catch(e) {
     document.getElementById('ma-body').innerHTML = `<p style="color:#DC2626;font-size:13px;">Error de conexión: ${e}</p>`;
   }
   if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
+}
+
+async function descargarDocx() {
+  if (!_currentAnalysis || !_currentLic) return;
+  const btn = document.getElementById('btn-docx');
+  btn.textContent = '⏳ Generando…';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/descargar-analisis', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        titulo: _currentLic.titulo, organo: _currentLic.organo,
+        importe: _currentLic.importe, plazo: _currentLic.plazo,
+        analysis: _currentAnalysis
+      })
+    });
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = r.headers.get('Content-Disposition')?.match(/filename="?([^"]+)"?/)?.[1] || 'analisis.docx';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) { toast('❌ Error al descargar', 'err'); }
+  btn.textContent = '📄 Descargar DOCX';
+  btn.disabled = false;
 }
 
 function verDetalle(l) {
